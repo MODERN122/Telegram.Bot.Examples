@@ -1,8 +1,8 @@
+using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Logging;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -12,8 +12,8 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace Telegram.Bot.Examples.WebHook.Services
 {
-public class HandleUpdateService
-{
+    public class HandleUpdateService
+    {
         private readonly ITelegramBotClient _botClient;
         private readonly ILogger<HandleUpdateService> _logger;
 
@@ -33,11 +33,11 @@ public class HandleUpdateService
                 // UpdateType.ShippingQuery:
                 // UpdateType.PreCheckoutQuery:
                 // UpdateType.Poll:
-                UpdateType.Message            => BotOnMessageReceived(update.Message),
-                UpdateType.EditedMessage      => BotOnMessageReceived(update.EditedMessage),
-                UpdateType.CallbackQuery      => BotOnCallbackQueryReceived(update.CallbackQuery),
-                UpdateType.InlineQuery        => BotOnInlineQueryReceived(update.InlineQuery),
-                UpdateType.ChosenInlineResult => BotOnChosenInlineResultReceived(update.ChosenInlineResult),
+                UpdateType.Message            => BotOnMessageReceived(update.Message!),
+                UpdateType.EditedMessage      => BotOnMessageReceived(update.EditedMessage!),
+                UpdateType.CallbackQuery      => BotOnCallbackQueryReceived(update.CallbackQuery!),
+                UpdateType.InlineQuery        => BotOnInlineQueryReceived(update.InlineQuery!),
+                UpdateType.ChosenInlineResult => BotOnChosenInlineResultReceived(update.ChosenInlineResult!),
                 _                             => UnknownUpdateHandlerAsync(update)
             };
 
@@ -57,7 +57,7 @@ public class HandleUpdateService
             if (message.Type != MessageType.Text)
                 return;
 
-            var action = message.Text.Split(' ').First() switch
+            var action = message.Text!.Split(' ').First() switch
             {
                 "/inline"   => SendInlineKeyboard(_botClient, message),
                 "/keyboard" => SendReplyKeyboard(_botClient, message),
@@ -107,9 +107,9 @@ public class HandleUpdateService
                         new KeyboardButton[] { "1.1", "1.2" },
                         new KeyboardButton[] { "2.1", "2.2" },
                     })
-                    {
-                        ResizeKeyboard = true
-                    };
+                {
+                    ResizeKeyboard = true
+                };
 
                 return await bot.SendTextMessageAsync(chatId: message.Chat.Id,
                                                       text: "Choose",
@@ -180,9 +180,9 @@ public class HandleUpdateService
 
         private async Task BotOnInlineQueryReceived(InlineQuery inlineQuery)
         {
-           _logger.LogInformation($"Received inline query from: {inlineQuery.From.Id}");
+            _logger.LogInformation($"Received inline query from: {inlineQuery.From.Id}");
 
-            InlineQueryResultBase[] results = {
+            InlineQueryResult[] results = {
                 // displayed result
                 new InlineQueryResultArticle(
                     id: "3",
@@ -218,7 +218,7 @@ public class HandleUpdateService
             var ErrorMessage = exception switch
             {
                 ApiRequestException apiRequestException => $"Telegram API Error:\n[{apiRequestException.ErrorCode}]\n{apiRequestException.Message}",
-                _                                       => exception.ToString()
+                _ => exception.ToString()
             };
 
             _logger.LogInformation(ErrorMessage);

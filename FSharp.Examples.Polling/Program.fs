@@ -248,10 +248,10 @@ module TelegramBot =
 
             use cts = new CancellationTokenSource();
 
-            botClient.StartReceiving(DefaultUpdateHandler(
-                                        Handlers.handleUpdateAsync |> FuncConvert.ToCSharpDelegate,
-                                        Handlers.handleErrorAsync |> FuncConvert.ToCSharpDelegate),
-                                    cts.Token)
+            botClient.StartReceiving(Handlers.handleUpdateAsync |> FuncConvert.ToCSharpDelegate,
+                                     Handlers.handleErrorAsync |> FuncConvert.ToCSharpDelegate,
+                                     ReceiverOptions( ThrowPendingUpdates = true, AllowedUpdates = [||] ),
+                                     cts.Token)
         } |> Async.RunSynchronously
 
         printfn "Press <Enter> to exit"
