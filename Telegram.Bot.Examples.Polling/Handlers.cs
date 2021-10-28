@@ -1,8 +1,10 @@
+using Microsoft.EntityFrameworkCore;
 using System;
 using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Telegram.Bot.Examples.Polling;
 using Telegram.Bot.Exceptions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -33,7 +35,7 @@ namespace Telegram.Bot.Examples.Echo
                 // UpdateType.Unknown:
                 // UpdateType.ChannelPost:
                 // UpdateType.EditedChannelPost:
-                // UpdateType.ShippingQuery:
+                //UpdateType.ShippingQuery
                 // UpdateType.PreCheckoutQuery:
                 // UpdateType.Poll:
                 UpdateType.Message            => BotOnMessageReceived(botClient, update.Message),
@@ -65,13 +67,31 @@ namespace Telegram.Bot.Examples.Echo
                 "/inline"   => SendInlineKeyboard(botClient, message),
                 "/keyboard" => SendReplyKeyboard(botClient, message),
                 "/remove"   => RemoveKeyboard(botClient, message),
-                "/photo"    => SendFile(botClient, message),
                 "/request"  => RequestContactAndLocation(botClient, message),
+                "/add"      => AddBirthday(botClient, message),
                 _           => Usage(botClient, message)
             };
             var sentMessage = await action;
             Console.WriteLine($"The message was sent with id: {sentMessage.MessageId}");
 
+            static async Task<Message> AddBirthday(ITelegramBotClient botClient, Message message)
+            {
+                using (var db = new BirthdayContext())
+                {
+                    db.Database.EnsureCreated();
+                    // Note: This sample requires the database to be created before running.
+                    Console.WriteLine($"Database path: {db.DbPath}.");
+
+                    // Create
+                    Console.WriteLine("Inserting a new Birthday");
+                    db.Add(new Birthday(DateTimeOffset.Now, message.From.Id, message.From.FirstName));
+                    db.SaveChanges();
+                    var birthdays = await db.Birthdays.ToListAsync();
+                }
+                return await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
+                                                            text: "Removing keyboard",
+                                                            replyMarkup: new ReplyKeyboardRemove());
+            }
             // Send inline keyboard
             // You can process responses in BotOnCallbackQueryReceived handler
             static async Task<Message> SendInlineKeyboard(ITelegramBotClient botClient, Message message)
@@ -126,19 +146,6 @@ namespace Telegram.Bot.Examples.Echo
                                                             replyMarkup: new ReplyKeyboardRemove());
             }
 
-            static async Task<Message> SendFile(ITelegramBotClient botClient, Message message)
-            {
-                await botClient.SendChatActionAsync(message.Chat.Id, ChatAction.UploadPhoto);
-
-                const string filePath = @"Files/tux.png";
-                using FileStream fileStream = new(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
-                var fileName = filePath.Split(Path.DirectorySeparatorChar).Last();
-
-                return await botClient.SendPhotoAsync(chatId: message.Chat.Id,
-                                                      photo: new InputOnlineFile(fileStream, fileName),
-                                                      caption: "Nice Picture");
-            }
-
             static async Task<Message> RequestContactAndLocation(ITelegramBotClient botClient, Message message)
             {
                 var RequestReplyKeyboard = new ReplyKeyboardMarkup(new[]
@@ -155,17 +162,14 @@ namespace Telegram.Bot.Examples.Echo
             static async Task<Message> Usage(ITelegramBotClient botClient, Message message)
             {
                 const string usage = "Usage:\n" +
-                                     "/inline   - send inline keyboard\n" +
-                                     "/keyboard - send custom keyboard\n" +
-                                     "/remove   - remove custom keyboard\n" +
-                                     "/photo    - send a photo\n" +
-                                     "/request  - request location or contact";
+                                     "/add  - добавить день рождения";
 
                 return await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
                                                             text: usage,
                                                             replyMarkup: new ReplyKeyboardRemove());
             }
         }
+
 
         // Process Inline Keyboard callback data
         private static async Task BotOnCallbackQueryReceived(ITelegramBotClient botClient, CallbackQuery callbackQuery)
