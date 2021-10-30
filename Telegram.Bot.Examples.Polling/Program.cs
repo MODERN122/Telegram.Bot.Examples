@@ -17,9 +17,9 @@ namespace Telegram.Bot.Examples.Echo
             Console.Title = me.Username;
 
             using var cts = new CancellationTokenSource();
-
+            var hr =new Handlers();
             // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
-            Bot.StartReceiving(new DefaultUpdateHandler(Handlers.HandleUpdateAsync, Handlers.HandleErrorAsync),
+            Bot.StartReceiving(new DefaultUpdateHandler(hr.HandleUpdateAsync, Handlers.HandleErrorAsync),
                                cts.Token);
 
             Console.WriteLine($"Start listening for @{me.Username}");
