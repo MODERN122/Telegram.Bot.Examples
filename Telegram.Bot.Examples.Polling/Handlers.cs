@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -72,6 +73,7 @@ namespace Telegram.Bot.Examples.Echo
             {
                 "/add" => AddBirthday(botClient, message),
                 "/all" => GetAllBirthdays(botClient, message),
+                "/last" => GetLastAddedBirthday(botClient, message),
                 _ => Usage(botClient, message)
             };
             var sentMessage = await action;
@@ -80,6 +82,7 @@ namespace Telegram.Bot.Examples.Echo
             async Task<Message> AddBirthday(ITelegramBotClient botClient, Message message)
             {
                 using var db = new BirthdayContext();
+                cancellationToken = new CancellationTokenSource();
 
                 db.Database.EnsureCreated();
                 // Note: This sample requires the database to be created before running.
@@ -110,7 +113,7 @@ namespace Telegram.Bot.Examples.Echo
                     return await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
                                                                 text: "Введите корректную дату рождения");
                 }
-                var birthday = new Birthday(dateTime, message.From.Id, fio, message.MessageId);
+                var birthday = new Birthday(dateTime, message.From.Id, fio, message.Chat.Id);
                 currentBirthdayId = birthday.Id;
                 db.Add(birthday);
                 db.SaveChanges();
@@ -141,6 +144,7 @@ namespace Telegram.Bot.Examples.Echo
 
             async Task<Message> GetAllBirthdays(ITelegramBotClient botClient, Message message)
             {
+
                 using var context = new BirthdayContext();
                 if (context.Birthdays == null)
                 {
@@ -148,21 +152,30 @@ namespace Telegram.Bot.Examples.Echo
                                                                 text: "Нет дней рождений",
                                                                 replyMarkup: new ReplyKeyboardRemove());
                 }
-                var birthdays =  context.Birthdays.Where(x=>x.TelegramId==message.From.Id).ToList();
+                var birthdays = await context.Birthdays.Where(x => x.TelegramId == message.From.Id).ToListAsync();
+
+                var inlineKeyboards = new List<List<InlineKeyboardButton>>();
                 foreach (var birthday in birthdays)
                 {
-                    await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
-                                                                text: $"{birthday.Fio}\n" +
-                                                                $"{birthday.NickName}\n" +
-                                                                $"{birthday.Birthdate}\n" +
-                                                                $"{birthday.City}",
-                                                                replyMarkup: new ReplyKeyboardRemove());
+                    inlineKeyboards.Add(new List<InlineKeyboardButton>() { new InlineKeyboardButton()
+                    {
+                        Text =  $"{birthday.Fio.Split(" ")[1]} " +
+                                $"{birthday.NickName} " +
+                                $"{birthday.BirthDate.ToString("dd.MM.yy")} ",
+
+                        CallbackData = "openBirthday" +"|"+ birthday.Id.ToString(),
+                    }});
                 }
                 return
                     await botClient.SendTextMessageAsync(chatId: message.Chat.Id,
-                                                                text:"Все дни напоминания о днях рождения выведены",
-                                                                replyMarkup: new ReplyKeyboardRemove());
+                                                                text: "Все напоминания о днях рождения выведены",
+                                                                replyMarkup: new InlineKeyboardMarkup(inlineKeyboards));
             }
+        }
+
+        private async Task<Message> GetLastAddedBirthday(ITelegramBotClient botClient, Message message)
+        {
+            throw new NotImplementedException();
         }
 
         private async Task HandleUpdate1Async(ITelegramBotClient botClient, Update update, CancellationToken arg3)
@@ -199,7 +212,7 @@ namespace Telegram.Bot.Examples.Echo
                 );
             cancellationToken.Cancel();
             cancellationToken = new CancellationTokenSource();
-            var result = await botClient.SendTextMessageAsync(chatId: update.Message?.Chat.Id ?? update.CallbackQuery.Message!.MessageId,
+            var result = await botClient.SendTextMessageAsync(chatId: update.Message?.Chat.Id ?? update.CallbackQuery.Message!.Chat.Id,
                                                         text: "Введите город проживания или нажмите Пропустить", replyMarkup: inlineKeyboardMarkup);
             if (result != null)
             {
@@ -241,7 +254,7 @@ namespace Telegram.Bot.Examples.Echo
                 );
             cancellationToken.Cancel();
             cancellationToken = new CancellationTokenSource();
-            var result = await botClient.SendTextMessageAsync(chatId: update.Message?.Chat.Id ?? update.CallbackQuery.Message!.MessageId,
+            var result = await botClient.SendTextMessageAsync(chatId: update.Message?.Chat.Id ?? update.CallbackQuery.Message!.Chat.Id,
                                                         text: "Введите адрес проживания или нажмите Пропустить", replyMarkup: inlineKeyboardMarkup);
             if (result != null)
             {
@@ -255,15 +268,40 @@ namespace Telegram.Bot.Examples.Echo
         }
 
         // Process Inline Keyboard callback data
-        private static async Task BotOnCallbackQueryReceived(ITelegramBotClient botClient, CallbackQuery callbackQuery)
+        private async Task BotOnCallbackQueryReceived(ITelegramBotClient botClient, CallbackQuery callbackQuery)
         {
             await botClient.AnswerCallbackQueryAsync(
                 callbackQueryId: callbackQuery.Id,
                 text: $"Received {callbackQuery.Data}");
-
-            await botClient.SendTextMessageAsync(
+            var splits = callbackQuery.Data.Split("|");
+            if (splits.First() == "openBirthday")
+            {
+                using var context = new BirthdayContext();
+                Guid id;
+                if (!Guid.TryParse(splits[1], out id))
+                {
+                    return;
+                }
+                var birthday = await context.Birthdays.FirstOrDefaultAsync(x => x.Id == id);
+                if (birthday == null)
+                {
+                    await botClient.SendTextMessageAsync(
                 chatId: callbackQuery.Message.Chat.Id,
-                text: $"Received {callbackQuery.Data}");
+                text: $"Возникла ошибка при поиске напоминания");
+                    return;
+                }
+                var inlineKeyboardMarkup = new InlineKeyboardMarkup(
+                  new List<List<InlineKeyboardButton>>() {
+                      new List<InlineKeyboardButton>() { new InlineKeyboardButton() { Text = "Фио:"+ birthday.Fio, CallbackData = "fio"+"|"+splits[1] }, },
+                      new List<InlineKeyboardButton>() { new InlineKeyboardButton() { Text = "Никнейм:"+ birthday.NickName, CallbackData = "nick" + "|" + splits[1] },new InlineKeyboardButton() { Text = "Дата:"+ birthday.BirthDate.ToString("dd.MM.yy"), CallbackData = "date" + "|" + splits[1] }, },
+                      new List<InlineKeyboardButton>() { new InlineKeyboardButton() { Text = "Город:"+ birthday.City, CallbackData = "city" + "|" + splits[1] }, new InlineKeyboardButton() { Text = "Адрес:"+ birthday.StreetAddress, CallbackData = "address" + "|" + splits[1] },},
+                      new List<InlineKeyboardButton>() {new InlineKeyboardButton() { Text = "Напоминания", CallbackData = "reminders" + "|" + splits[1] }, },
+                  }
+                );
+                var result = await botClient.SendTextMessageAsync(chatId: callbackQuery.Message!.Chat.Id,
+                                                            text: "Выберите какое значение хотите изменить", replyMarkup: inlineKeyboardMarkup);
+
+            }
         }
 
         private static async Task BotOnInlineQueryReceived(ITelegramBotClient botClient, InlineQuery inlineQuery)

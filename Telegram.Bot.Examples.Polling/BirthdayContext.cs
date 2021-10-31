@@ -10,6 +10,7 @@ namespace Telegram.Bot.Examples.Polling
     public class BirthdayContext:DbContext
     {
         public DbSet<Birthday>? Birthdays { get; set; }
+        public DbSet<Reminder>? Reminders { get; set; }
 
         public string DbPath { get; private set; }
 
