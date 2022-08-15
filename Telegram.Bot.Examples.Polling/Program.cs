@@ -1,32 +1,29 @@
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using Telegram.Bot.Extensions.Polling;
+using Telegram.Bot;
+using Telegram.Bot.Examples.Polling;
+using Telegram.Bot.Polling;
+using Telegram.Bot.Types.Enums;
 
-namespace Telegram.Bot.Examples.Echo
+var bot = new TelegramBotClient(BotConfiguration.BotToken);
+
+var me = await bot.GetMeAsync();
+Console.Title = me.Username ?? "My awesome Bot";
+
+using var cts = new CancellationTokenSource();
+
+// StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
+var receiverOptions = new ReceiverOptions()
 {
-    public static class Program 
-    {
-        private static TelegramBotClient? Bot;
+    AllowedUpdates = Array.Empty<UpdateType>(),
+    ThrowPendingUpdates = true,
+};
 
-        public static async Task Main()
-        {
-            Bot = new TelegramBotClient(Configuration.BotToken);
+bot.StartReceiving(updateHandler: UpdateHandlers.HandleUpdateAsync,
+                   pollingErrorHandler: UpdateHandlers.PollingErrorHandler,
+                   receiverOptions: receiverOptions,
+                   cancellationToken: cts.Token);
 
-            var me = await Bot.GetMeAsync();
-            Console.Title = me.Username;
+Console.WriteLine($"Start listening for @{me.Username}");
+Console.ReadLine();
 
-            using var cts = new CancellationTokenSource();
-
-            // StartReceiving does not block the caller thread. Receiving is done on the ThreadPool.
-            Bot.StartReceiving(new DefaultUpdateHandler(Handlers.HandleUpdateAsync, Handlers.HandleErrorAsync),
-                               cts.Token);
-
-            Console.WriteLine($"Start listening for @{me.Username}");
-            Console.ReadLine();
-
-            // Send cancellation request to stop bot
-            cts.Cancel();
-        }
-    }
-}
+// Send cancellation request to stop bot
+cts.Cancel();
