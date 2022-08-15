@@ -16,9 +16,10 @@ namespace Telegram.Bot.Examples.Polling
 
         public BirthdayContext()
         {
-            var folder = Environment.SpecialFolder.LocalApplicationData;
-            var path = Environment.GetFolderPath(folder);
-            DbPath = @"C:\Users\Mikhail\Documents\GitHub\Telegram.Bot.Examples\Telegram.Bot.Examples.Polling\birtdays.db";
+            string startupPath = System.IO.Directory.GetCurrentDirectory();
+
+            string path = Environment.CurrentDirectory;
+            DbPath = @"D:\Projects\Telegram.Bot.Examples\Telegram.Bot.Examples.Polling\birtdays.db";
         }
         // The following configures EF to create a Sqlite database file in the
         // special "local" folder for your platform.
