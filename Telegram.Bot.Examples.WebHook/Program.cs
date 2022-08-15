@@ -1,6 +1,7 @@
 using Telegram.Bot;
 using Telegram.Bot.Examples.WebHook;
 using Telegram.Bot.Examples.WebHook.Services;
+using Newtonsoft.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
